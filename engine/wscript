@@ -273,9 +273,11 @@ def build(bld):
 			netjs_node = bld.path.find_node('net.js')
 			linkflags += ['-sINITIAL_MEMORY=134217728', '-Oz', '--closure 1', '-sENVIRONMENT=web',
 						  '-sALLOW_MEMORY_GROWTH=1', '-sSTACK_SIZE=16777216', '--minify-wasm-imports',
-						  '-sUSE_WEBGL2=1', '-sMIN_WEBGL_VERSION=2', '-sMAX_WEBGL_VERSION=2', '-sFULL_ES3=1',
-						  '-sEXPORTED_RUNTIME_METHODS=["ccall", "FS"]', f'--js-library={netjs_node.abspath()}',
-						  '-sSTACK_OVERFLOW_CHECK=1', '-sMODULARIZE=1', '-sEXPORT_NAME=Xash3D']
+						  '-sUSE_WEBGL2=1', '-sMIN_WEBGL_VERSION=2', '-sMAX_WEBGL_VERSION=2', '-sFULL_ES2=1',
+						  '-sEXPORTED_RUNTIME_METHODS=["ccall", "FS", "callMain","addRunDependency","removeRunDependency"]', f'--js-library={netjs_node.abspath()}',
+						  '-sSTACK_OVERFLOW_CHECK=1', '-sMODULARIZE=1', '-sEXPORT_NAME=Xash3D',
+                          '-sAUTO_JS_LIBRARIES=0', '-lidbfs.js', '-lwebgl.js', '-lopenal.js', '-lasync.js', '-sNO_POLYFILL'
+						  ]
 
 		f(source = source,
 			target = 'xash',
