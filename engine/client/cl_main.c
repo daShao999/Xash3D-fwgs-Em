@@ -1317,18 +1317,15 @@ static void CL_CreateResourceList( void )
 	cl.num_resources = 0;
 	memset( rgucMD5_hash, 0, sizeof( rgucMD5_hash ));
 
+	// sanitize cvar value
+	if( Q_strcmp( cl_logoext.string, "bmp" ) && Q_strcmp( cl_logoext.string, "png" ))
+		Cvar_DirectSet( &cl_logoext, "bmp" );
+
+	Q_snprintf( szFileName, sizeof( szFileName ), "logos/remapped.%s", cl_logoext.string );
 	if( cls.legacymode == PROTO_GOLDSRC )
 	{
-		// TODO: actually repack remapped.bmp into a WAD for GoldSrc servers
+		CL_ConvertImageToWAD3( szFileName );
 		Q_strncpy( szFileName, "tempdecal.wad", sizeof( szFileName ));
-	}
-	else
-	{
-		// sanitize cvar value
-		if( Q_strcmp( cl_logoext.string, "bmp" ) && Q_strcmp( cl_logoext.string, "png" ))
-			Cvar_DirectSet( &cl_logoext, "bmp" );
-
-		Q_snprintf( szFileName, sizeof( szFileName ), "logos/remapped.%s", cl_logoext.string );
 	}
 	fp = FS_Open( szFileName, "rb", true );
 
