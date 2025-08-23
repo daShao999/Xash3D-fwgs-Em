@@ -142,6 +142,8 @@ static void FS_UnloadProgs( void )
 
 #ifdef XASH_INTERNAL_GAMELIBS
 #define FILESYSTEM_STDIO_DLL "filesystem_stdio"
+#elif XASH_ANDROID
+#define FILESYSTEM_STDIO_DLL "libfilesystem_stdio.so"
 #else
 #define FILESYSTEM_STDIO_DLL "filesystem_stdio." OS_LIB_EXT
 #endif
@@ -332,6 +334,7 @@ void FS_Init( const char *basedir )
 	Cvar_RegisterVariable( &fs_mount_lv );
 	Cvar_RegisterVariable( &fs_mount_addon );
 	Cvar_RegisterVariable( &fs_mount_l10n );
+	Cvar_RegisterVariable( &ui_language );
 
 	if( !Sys_GetParmFromCmdLine( "-dll", host.gamedll ))
 		host.gamedll[0] = 0;

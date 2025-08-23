@@ -1,6 +1,6 @@
 /*
-build_vcs.c - info from VCS
-Copyright (C) 2025 Alibek Omarov
+crash.h - advanced crashhandler
+Copyright (C) 2016 Mittorn
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -13,6 +13,13 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
 */
 
-const char *g_buildcommit = XASH_BUILD_COMMIT;
-const char *g_buildbranch = XASH_BUILD_BRANCH;
-const char *g_buildcommit_date = XASH_BUILD_COMMIT_DATE;
+//
+// crash_libbacktrace.c
+//
+int Sys_CrashDetailsLibbacktrace( int logfd, char *message, int len, size_t max_len );
+qboolean Sys_SetupLibbacktrace( const char *argv0 );
+
+//
+// crash_glibc.c
+//
+int Sys_CrashDetailsExecinfo( int logfd, char *message, int len, size_t max_len );
