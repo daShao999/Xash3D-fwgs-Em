@@ -151,8 +151,11 @@ static void COM_GenerateClientLibraryPath( const char *name, char *out, size_t s
 #else
 	string dllpath;
 
-	// we don't have any library prefixes, so we can safely append dll_path here
+#if XASH_ANDROID
+	Q_snprintf( dllpath, sizeof( dllpath ), "%s/lib%s", GI->dll_path, name );
+#else
 	Q_snprintf( dllpath, sizeof( dllpath ), "%s/%s", GI->dll_path, name );
+#endif
 
 	COM_GenerateCommonLibraryName( dllpath, OS_LIB_EXT, out, size );
 #endif
@@ -181,7 +184,7 @@ COM_GenerateServerLibraryPath
 Generates platform-unique and compatible name for server library
 ==============
 */
-static void COM_GenerateServerLibraryPath( char *out, size_t size )
+static void COM_GenerateServerLibraryPath( const char *alt_dllname, char *out, size_t size )
 {
 #ifdef XASH_INTERNAL_GAMELIBS // assuming library loader knows where to get libraries
 	Q_strncpy( out, "server", size );
@@ -192,21 +195,42 @@ static void COM_GenerateServerLibraryPath( char *out, size_t size )
 #elif XASH_X86 && XASH_LINUX && !XASH_ANDROID
 	Q_strncpy( out, GI->game_dll_linux, size );
 #else
-	string dllpath;
-	const char *ext;
+	string temp, dir, dllpath, ext;
+	const char *dllname;
 
 #if XASH_WIN32
-	Q_strncpy( dllpath, GI->game_dll, sizeof( dllpath ) );
+	Q_strncpy( temp, GI->game_dll, sizeof( temp ));
 #elif XASH_APPLE
-	Q_strncpy( dllpath, GI->game_dll_osx, sizeof( dllpath ) );
+	Q_strncpy( temp, GI->game_dll_osx, sizeof( temp ));
 #else
-	Q_strncpy( dllpath, GI->game_dll_linux, sizeof( dllpath ) );
+	Q_strncpy( temp, GI->game_dll_linux, sizeof( temp ));
 #endif
 
-	ext = COM_FileExtension( dllpath );
-	COM_StripExtension( dllpath );
-	COM_StripIntelSuffix( dllpath );
+	// path to the dll directory
+	COM_ExtractFilePath( temp, dir );
 
+	if( alt_dllname )
+	{
+		dllname = alt_dllname;
+		Q_strncpy( ext, OS_LIB_EXT, sizeof( ext ));
+	}
+	else
+	{
+		// cleaned up dll name
+		Q_strncpy( ext, COM_FileExtension( temp ), sizeof( ext ));
+		COM_StripExtension( temp );
+		COM_StripIntelSuffix( temp );
+		dllname = COM_FileWithoutPath( temp );
+	}
+
+	// add `lib` prefix if required by platform
+#if XASH_ANDROID
+	Q_snprintf( dllpath, sizeof( dllpath ), "%s/lib%s", dir, dllname );
+#else
+	Q_snprintf( dllpath, sizeof( dllpath ), "%s/%s", dir, dllname );
+#endif
+
+	// and finally add platform suffix
 	COM_GenerateCommonLibraryName( dllpath, ext, out, size );
 #endif
 }
@@ -226,32 +250,29 @@ void COM_GetCommonLibraryPath( ECommonLibraryType eLibType, char *out, size_t si
 	case LIBRARY_GAMEUI:
 		if( COM_CheckStringEmpty( host.menulib ))
 		{
-			Q_strncpy( out, host.menulib, size );
+			if( host.menulib[0] == '@' )
+				COM_GenerateClientLibraryPath( host.menulib + 1, out, size );
+			else Q_strncpy( out, host.menulib, size );
 		}
-		else
-		{
-			COM_GenerateClientLibraryPath( "menu", out, size );
-		}
+		else COM_GenerateClientLibraryPath( "menu", out, size );
 		break;
 	case LIBRARY_CLIENT:
 		if( COM_CheckStringEmpty( host.clientlib ))
 		{
-			Q_strncpy( out, host.clientlib, size );
+			if( host.clientlib[0] == '@' )
+				COM_GenerateClientLibraryPath( host.clientlib + 1, out, size );
+			else Q_strncpy( out, host.clientlib, size );
 		}
-		else
-		{
-			COM_GenerateClientLibraryPath( "client", out, size );
-		}
+		else COM_GenerateClientLibraryPath( "client", out, size );
 		break;
 	case LIBRARY_SERVER:
 		if( COM_CheckStringEmpty( host.gamedll ))
 		{
-			Q_strncpy( out, host.gamedll, size );
+			if( host.gamedll[0] == '@' )
+				COM_GenerateServerLibraryPath( host.gamedll + 1, out, size );
+			else Q_strncpy( out, host.gamedll, size );
 		}
-		else
-		{
-			COM_GenerateServerLibraryPath( out, size );
-		}
+		else COM_GenerateServerLibraryPath( NULL, out, size );
 		break;
 	default:
 		ASSERT( 0 );
