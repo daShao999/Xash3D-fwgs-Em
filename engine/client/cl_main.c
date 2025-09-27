@@ -789,6 +789,7 @@ static void CL_WritePacket( void )
 	{
 		int newcmds, numcmds;
 		int from, i, key;
+		int packet_loss = bound( 0, (int)cls.packet_loss, 100 );
 
 		cls.nextcmdtime = host.realtime + ( 1.0f / cl_cmdrate.value );
 
@@ -808,7 +809,10 @@ static void CL_WritePacket( void )
 		key = MSG_GetRealBytesWritten( &buf );
 		MSG_WriteByte( &buf, 0 );
 
-		MSG_WriteByte( &buf, bound( 0, (int)cls.packet_loss, 100 ));
+		if( proto == PROTO_GOLDSRC && voice_loopback.value )
+			SetBits( packet_loss, BIT( 7 ) ); // set 7-th bit to tell server that we want voice loopback
+
+		MSG_WriteByte( &buf, packet_loss );
 		MSG_WriteByte( &buf, numbackup );
 		MSG_WriteByte( &buf, newcmds );
 
@@ -1229,8 +1233,8 @@ static void CL_CheckForResend( void )
 	else if( cl_resend.value > CL_MAX_RESEND_TIME )
 		Cvar_DirectSetValue( &cl_resend, CL_MAX_RESEND_TIME );
 
-	bandwidthTest = cls.legacymode == PROTO_CURRENT && cl_test_bandwidth.value && cls.connect_retry <= CL_TEST_RETRIES;
-	resendTime = bandwidthTest ? 1.0f : cl_resend.value;
+	bandwidthTest = cls.legacymode == PROTO_CURRENT && cl_test_bandwidth.value && cls.connect_retry <= CL_TEST_RETRIES && !cls.passed_bandwidth_test;
+	resendTime = bandwidthTest ? 2.0f : cl_resend.value;
 
 	if(( host.realtime - cls.connect_time ) < resendTime )
 		return;
@@ -1263,12 +1267,8 @@ static void CL_CheckForResend( void )
 	{
 		// too many fails use default connection method
 		Con_Printf( "Bandwidth test failed, fallback to default connecting method\n" );
-		Con_Printf( "Connecting to %s... (retry #%i)\n", cls.servername, cls.connect_retry + 1 );
-		CL_SendGetChallenge( adr );
 		Cvar_DirectSetValue( &cl_dlmax, FRAGMENT_MIN_SIZE );
-		cls.connect_time = host.realtime;
-		cls.connect_retry++;
-		return;
+		bandwidthTest = false;
 	}
 
 	cls.serveradr = adr;
@@ -1413,6 +1413,7 @@ static void CL_Connect_f( void )
 	cls.connect_time = MAX_HEARTBEAT; // CL_CheckForResend() will fire immediately
 	cls.max_fragment_size = FRAGMENT_MAX_SIZE; // guess a we can establish connection with maximum fragment size
 	cls.connect_retry = 0;
+	cls.passed_bandwidth_test = false;
 	cls.spectator = false;
 	cls.signon = 0;
 }
@@ -1673,6 +1674,7 @@ void CL_Disconnect( void )
 	memset( &cls.serveradr, 0, sizeof( cls.serveradr ) );
 	cls.set_lastdemo = false;
 	cls.connect_retry = 0;
+	cls.passed_bandwidth_test = false;
 	cls.signon = 0;
 	cls.legacymode = PROTO_CURRENT;
 
@@ -2283,14 +2285,11 @@ static void CL_HandleTestPacket( netadr_t from, sizebuf_t *msg )
 		{
 			// too many fails use default connection method
 			Con_Printf( "hi-speed connection is failed, use default method\n" );
-			CL_SendGetChallenge( from );
 			Cvar_SetValue( "cl_dlmax", FRAGMENT_DEFAULT_SIZE );
-			cls.connect_time = host.realtime;
+			cls.connect_time = MAX_HEARTBEAT;
 			return;
 		}
 
-		// if we waiting more than cl_timeout or packet was trashed
-		cls.connect_time = MAX_HEARTBEAT;
 		return; // just wait for a next responce
 	}
 
@@ -2302,12 +2301,11 @@ static void CL_HandleTestPacket( netadr_t from, sizebuf_t *msg )
 
 	if( crcValue == crcValue2 )
 	{
-		// packet was sucessfully delivered, adjust the fragment size and get challenge
-
+		// packet was sucessfully delivered, adjust the fragment size
 		Con_DPrintf( "CRC %x is matched, get challenge, fragment size %d\n", crcValue, cls.max_fragment_size );
-		CL_SendGetChallenge( from );
 		Cvar_SetValue( "cl_dlmax", cls.max_fragment_size );
-		cls.connect_time = host.realtime;
+		cls.connect_time = MAX_HEARTBEAT;
+		cls.passed_bandwidth_test = true;
 	}
 	else
 	{
@@ -2315,16 +2313,12 @@ static void CL_HandleTestPacket( netadr_t from, sizebuf_t *msg )
 		{
 			// too many fails use default connection method
 			Con_Printf( "hi-speed connection is failed, use default method\n" );
-			CL_SendGetChallenge( from );
 			Cvar_SetValue( "cl_dlmax", FRAGMENT_MIN_SIZE );
 			cls.connect_time = host.realtime;
 			return;
 		}
 
 		Msg( "got testpacket, CRC mismatched 0x%08x should be 0x%08x, trying next fragment size %d\n", crcValue2, crcValue, cls.max_fragment_size >> 1 );
-
-		// trying the next size of packet
-		cls.connect_time = MAX_HEARTBEAT;
 	}
 }
 
@@ -3126,9 +3120,6 @@ static qboolean CL_ShouldRescanFilesystem( void )
 			retval = true;
 		}
 	}
-
-	if( FBitSet( fs_mount_lv.flags|fs_mount_hd.flags|fs_mount_addon.flags|fs_mount_l10n.flags|ui_language.flags, FCVAR_CHANGED ))
-		retval = true;
 
 	return retval;
 }
